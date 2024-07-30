@@ -9,11 +9,10 @@ import (
 )
 
 type Server struct {
-	serverState    commons.State
-	stateLock      sync.Mutex
-	port           string
-	channelHandler handler.ChannelHandler
-	serverHandler  handler.ServerHandler
+	serverState   commons.State
+	stateLock     sync.Mutex
+	port          string
+	serverHandler handler.ServerHandler
 }
 
 func NewServer(port string) *Server {

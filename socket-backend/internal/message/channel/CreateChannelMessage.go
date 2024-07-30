@@ -1,3 +1,3 @@
-package message
+package channel
 
 type CreateChannelMessage struct{}

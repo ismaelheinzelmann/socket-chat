@@ -1,4 +1,4 @@
-package message
+package common
 
 type Message struct {
 	MessageType uint8   `json:"messageType"`
