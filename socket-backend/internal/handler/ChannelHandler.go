@@ -1,16 +1,16 @@
-package service
+package handler
 
 import (
 	"net"
+	"socket-backend/internal/commons"
 	"socket-backend/internal/enum"
 	"socket-backend/internal/message"
 )
 
 type ChannelHandler struct {
-	//channel commons.Channel
 }
 
-func (ch *ChannelHandler) Handle(connection net.Conn, msg message.Message) {
+func (ch *ChannelHandler) Handle(channel *commons.Channel, connection *net.Conn, msg *message.Message) {
 	switch msg.MessageType {
 	case enum.MessageTypes.WritingMessage:
 		{

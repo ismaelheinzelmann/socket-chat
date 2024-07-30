@@ -1,19 +1,19 @@
 package Socket
 
 import (
-	"bufio"
 	"fmt"
 	"net"
-	"socket-backend/internal/Util"
 	"socket-backend/internal/commons"
-	"socket-backend/internal/enum"
+	"socket-backend/internal/handler"
 	"sync"
 )
 
 type Server struct {
-	serverState commons.State
-	stateLock   sync.Mutex
-	port        string
+	serverState    commons.State
+	stateLock      sync.Mutex
+	port           string
+	channelHandler handler.ChannelHandler
+	serverHandler  handler.ServerHandler
 }
 
 func NewServer(port string) *Server {
@@ -25,34 +25,10 @@ func (s *Server) Run() {
 	ln, _ := net.Listen("tcp", ":"+s.port)
 
 	for {
-		//var m []byte
 		conn, _ := ln.Accept()
-		reader := bufio.NewReader(conn)
-		data, err := reader.ReadBytes('\n')
-		s.stateLock.Lock()
-		msg, err := Util.Unmarshall(data)
-		if err != nil {
-			println(err)
-		}
-		if msg.MessageType == enum.MessageTypes.JoinMessage {
-			if err != nil {
-				fmt.Println(err)
-			}
-			channel := s.getChannel(msg.ChannelID)
-			if channel != nil {
-				s.serverState.Channels[msg.ChannelID].Handler.Handle(conn, msg)
-			}
-		}
-		// TODO: Lidar com outros
-		s.stateLock.Unlock()
+		go s.serverHandler.Handle(&conn)
 	}
 }
 
-func (s *Server) getChannel(ch uint8) *commons.Channel {
-	for id, channel := range s.serverState.Channels {
-		if id == ch {
-			return channel
-		}
-	}
-	return nil
+func (s *Server) receiveConnection(conn net.Conn) {
 }
