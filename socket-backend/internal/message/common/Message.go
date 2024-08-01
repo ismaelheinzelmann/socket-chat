@@ -1,7 +1,8 @@
-package common
+package commons
+
+import "net"
 
 type Message struct {
-	MessageType uint8   `json:"messageType"`
-	ChannelID   uint8   `json:"channelId"`
-	Payload     *[]byte `json:"payload"`
+	origin net.Addr
+	body   string
 }
