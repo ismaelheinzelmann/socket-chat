@@ -1,3 +1,5 @@
 package channel
 
-type CreateChannelMessage struct{}
+type CreateChannelMessage struct {
+	Name string `json:"name"`
+}
