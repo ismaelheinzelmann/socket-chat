@@ -36,16 +36,20 @@ func (s *Server) Handle(conn *net.Conn) {
 	decoder := json.NewDecoder(*conn)
 	for {
 		// TODO refatorar verbosidade dos erros
-
 		var payloadMessage common.PayloadMessage
 		err := decoder.Decode(&payloadMessage)
+		channel := 0
 		if err != nil {
 			if err == io.EOF {
+				payloadMessage = common.PayloadMessage{MessageType: enum.MessageTypes.LeaveMessage, ChannelID: uint8(channel)}
+				s.handlers[uint8(channel)].Handle(&payloadMessage, conn)
 				break
 			}
 		}
 		channelHandler, _ := s.getHandler(&payloadMessage)
-		channelHandler.Handle(&payloadMessage, conn)
+		if !channelHandler.Handle(&payloadMessage, conn) {
+			break
+		}
 	}
 }
 
