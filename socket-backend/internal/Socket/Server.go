@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"socket-backend/internal/Socket/message"
 	"socket-backend/internal/enum"
 	"socket-backend/internal/handler"
 	"socket-backend/internal/message/common"
@@ -35,14 +36,23 @@ func (s *Server) Handle(conn *net.Conn) {
 	defer (*conn).Close()
 	decoder := json.NewDecoder(*conn)
 	for {
-		// TODO refatorar verbosidade dos erros
 		var payloadMessage common.PayloadMessage
 		err := decoder.Decode(&payloadMessage)
-		channel := 0
+		if payloadMessage.MessageType == enum.MessageTypes.ListChannelMessages {
+			s.stateLock.RLock()
+			var listChannels message.ListChannelMessage
+			listChannels.Channels = make([]message.InformationChannel, 0)
+			for _, channelHandler := range s.handlers {
+				name, members := (*channelHandler).GetInfo()
+				listChannels.Channels = append(listChannels.Channels, message.InformationChannel{ChannelName: name, Members: members})
+			}
+			s.stateLock.RUnlock()
+		}
+		channelID := 0
 		if err != nil {
 			if err == io.EOF {
-				payloadMessage = common.PayloadMessage{MessageType: enum.MessageTypes.LeaveMessage, ChannelID: uint8(channel)}
-				s.handlers[uint8(channel)].Handle(&payloadMessage, conn)
+				payloadMessage = common.PayloadMessage{MessageType: enum.MessageTypes.LeaveMessage, ChannelID: uint8(channelID)}
+				s.handlers[uint8(channelID)].Handle(&payloadMessage, conn)
 				break
 			}
 		}

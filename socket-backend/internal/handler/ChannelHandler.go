@@ -15,6 +15,16 @@ type ChannelHandler struct {
 	channel types.Channel
 }
 
+func (ch *ChannelHandler) GetInfo() (string, uint16) {
+	ch.channel.MembersLock.RLock()
+	defer ch.channel.MembersLock.RUnlock()
+	var members uint16 = 0
+	for _, _ = range ch.channel.Members {
+		members += 1
+	}
+	return ch.channel.Name, members
+}
+
 func (ch *ChannelHandler) Handle(msg *common.PayloadMessage, conn *net.Conn) bool {
 	var err *common.ErrorMessage
 	var keep bool
@@ -27,7 +37,12 @@ func (ch *ChannelHandler) Handle(msg *common.PayloadMessage, conn *net.Conn) boo
 		keep, err = ch.handleJoin(msg, conn)
 	case enum.MessageTypes.WritingMessage:
 		keep, err = ch.handleWriting(msg, conn)
+	case enum.MessageTypes.SendMessage:
+		keep, err = ch.handleSendMessage(msg, conn)
+	case enum.MessageTypes.LeaveMessage:
+		keep, err = ch.handleLeave(msg, conn)
 	}
+
 	if err != nil {
 		payloadError := Util.ParseError(err)
 		ch.sendError(payloadError, conn)
@@ -77,20 +92,21 @@ func (ch *ChannelHandler) handleJoin(msg *common.PayloadMessage, conn *net.Conn)
 	return true, nil
 }
 
-func (ch *ChannelHandler) handleLeave(msg *common.PayloadMessage, conn *net.Conn) *common.ErrorMessage {
+func (ch *ChannelHandler) handleLeave(msg *common.PayloadMessage, conn *net.Conn) (bool, *common.ErrorMessage) {
 	if ch.verifyUserInChannel(conn) {
 		ch.channel.MembersLock.RLock()
 		defer ch.channel.MembersLock.RUnlock()
-		payloadMessageBytes, _ := json.Marshal(msg)
+		syncLeaveMessage := sync.UserLeaveMessage{Name: ch.channel.Members[conn].Name}
+		syncLeaveBytes, _ := json.Marshal(syncLeaveMessage)
+		payloadMessage := common.PayloadMessage{MessageType: enum.MessageTypes.SyncLeaveMessage, ChannelID: ch.channel.ID, Payload: &syncLeaveBytes}
+		payloadMessageBytes, _ := json.Marshal(payloadMessage)
 		for _, member := range ch.channel.Members {
 			if member.Connection != conn {
-				member.ConnectionLock.Lock()
-				_, _ = (*member.Connection).Write(payloadMessageBytes)
-				member.ConnectionLock.Unlock()
+				ch.sendMember(&payloadMessageBytes, member)
 			}
 		}
 	}
-	return nil
+	return false, nil
 }
 
 func (ch *ChannelHandler) handleWriting(msg *common.PayloadMessage, conn *net.Conn) (bool, *common.ErrorMessage) {
@@ -108,14 +124,40 @@ func (ch *ChannelHandler) handleWriting(msg *common.PayloadMessage, conn *net.Co
 		defer ch.channel.MembersLock.RUnlock()
 		for _, member := range ch.channel.Members {
 			if member.Connection != conn {
-				member.ConnectionLock.Lock()
-				_, _ = (*member.Connection).Write(payloadMessageBytes)
-				member.ConnectionLock.Unlock()
+				ch.sendMember(&payloadMessageBytes, member)
 			}
 		}
 	}
 	return true, nil
 }
+
+func (ch *ChannelHandler) handleSendMessage(msg *common.PayloadMessage, conn *net.Conn) (bool, *common.ErrorMessage) {
+	if ch.verifyUserInChannel(conn) {
+		if ch.channel.ID != msg.ChannelID {
+			return true, &common.ErrorMessage{Error: "failed to report status"}
+		}
+		var sentMessage channel.MessageSendMessage
+		_ = json.Unmarshal(*msg.Payload, &sentMessage)
+		ch.channel.MembersLock.RLock()
+		ch.channel.MessagesLock.RLock()
+		defer ch.channel.MembersLock.RUnlock()
+		defer ch.channel.MessagesLock.RUnlock()
+
+		ch.channel.Messages = append(ch.channel.Messages, types.Message{Origin: conn, Body: sentMessage.Message})
+		syncSendMessage := sync.SendMessage{Name: ch.channel.Members[conn].Name, Message: sentMessage.Message}
+		syncSendMessageBytes, _ := json.Marshal(syncSendMessage)
+		payloadMessage := common.PayloadMessage{MessageType: enum.MessageTypes.SyncSendMessage, ChannelID: ch.channel.ID, Payload: &syncSendMessageBytes}
+		payloadMessageBytes, _ := json.Marshal(payloadMessage)
+		for _, member := range ch.channel.Members {
+			if member.Connection != conn {
+				ch.sendMember(&payloadMessageBytes, member)
+			}
+		}
+	}
+	return true, nil
+}
+
+//TODO: Enum of messages
 
 func (ch *ChannelHandler) sendOk(message string, conn *net.Conn) {
 	okMessage := common.OkMessage{Message: message}

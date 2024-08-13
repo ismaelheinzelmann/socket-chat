@@ -3,6 +3,6 @@ package types
 import "net"
 
 type Message struct {
-	origin net.Addr
-	body   string
+	Origin *net.Conn
+	Body   string
 }
